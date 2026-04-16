@@ -404,6 +404,7 @@
         transition: height .3s cubic-bezier(.32,.72,0,1);
         transform: none !important;
         overflow: hidden;
+        touch-action: none;
       }
       .sidebar.collapsed {
         transform: none !important;
@@ -414,16 +415,17 @@
       .sheet-handle {
         display: flex;
         justify-content: center;
-        padding: 10px 0 4px;
+        padding: 14px 0 10px;
         cursor: grab;
         flex-shrink: 0;
         -webkit-tap-highlight-color: transparent;
+        touch-action: none;
       }
       .sheet-handle .handle-bar {
-        width: 36px;
-        height: 4px;
-        border-radius: 2px;
-        background: rgba(255,255,255,.2);
+        width: 40px;
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(255,255,255,.25);
       }
 
       .sidebar-header { padding: 10px 16px 8px; }
@@ -436,7 +438,7 @@
       .tag-filters { padding: 8px 12px; gap: 4px; flex-shrink: 0; }
       .tag-btn { padding: 5px 10px; font-size: .7rem; }
 
-      .place-list { padding: 8px 10px; min-height: 0; }
+      .place-list { padding: 8px 10px; min-height: 0; touch-action: pan-y; overflow-y: auto; -webkit-overflow-scrolling: touch; }
       .place-card { padding: 10px 12px; }
 
       .info-panel {
@@ -933,6 +935,9 @@ let markerMap = {};
 // ── Map ──
 const map = L.map('map', { zoomControl: false }).setView([35.94, 14.42], 11);
 L.control.zoom({ position: 'topright' }).addTo(map);
+
+L.DomEvent.disableClickPropagation(document.getElementById('sidebar'));
+L.DomEvent.disableScrollPropagation(document.getElementById('sidebar'));
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
@@ -1434,27 +1439,45 @@ function snapToNearest(h) {
 }
 
 const handle = document.getElementById('sheetHandle');
+const sidebarEl = document.getElementById('sidebar');
 
+// Prevent ALL touch events on the sidebar from reaching the map
+sidebarEl.addEventListener('touchstart', e => {
+  if (!isMobile()) return;
+  e.stopPropagation();
+}, { passive: true });
+sidebarEl.addEventListener('touchmove', e => {
+  if (!isMobile()) return;
+  e.stopPropagation();
+}, { passive: true });
+sidebarEl.addEventListener('touchend', e => {
+  if (!isMobile()) return;
+  e.stopPropagation();
+}, { passive: true });
+
+// Handle drag
 handle.addEventListener('touchstart', e => {
   if (!isMobile()) return;
   isDragging = true;
   dragStartY = e.touches[0].clientY;
-  dragStartH = document.getElementById('sidebar').offsetHeight;
-  document.getElementById('sidebar').classList.add('dragging');
+  dragStartH = sidebarEl.offsetHeight;
+  sidebarEl.classList.add('dragging');
   e.preventDefault();
+  e.stopPropagation();
 }, { passive: false });
 
 document.addEventListener('touchmove', e => {
   if (!isDragging) return;
+  e.preventDefault();
   const dy = dragStartY - e.touches[0].clientY;
   const newH = Math.max(SNAP_PEEK, Math.min(window.innerHeight * 0.95, dragStartH + dy));
   setSheetHeight(newH);
-}, { passive: true });
+}, { passive: false });
 
 document.addEventListener('touchend', () => {
   if (!isDragging) return;
   isDragging = false;
-  const h = document.getElementById('sidebar').offsetHeight;
+  const h = sidebarEl.offsetHeight;
   snapToNearest(h);
 });
 
