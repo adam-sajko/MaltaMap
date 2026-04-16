@@ -27,13 +27,21 @@
       --transport: #6c757d;
     }
 
+    html {
+      overflow: hidden;
+      overscroll-behavior: none;
+      position: fixed;
+      inset: 0;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      height: 100vh;
+      height: 100%;
+      width: 100%;
       overflow: hidden;
       display: flex;
+      overscroll-behavior: none;
     }
 
     /* ── Sidebar ── */
@@ -404,7 +412,7 @@
         transition: height .3s cubic-bezier(.32,.72,0,1);
         transform: none !important;
         overflow: hidden;
-        touch-action: none;
+        overscroll-behavior: contain;
       }
       .sidebar.collapsed {
         transform: none !important;
