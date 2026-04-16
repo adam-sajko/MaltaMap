@@ -1451,21 +1451,7 @@ function snapToNearest(h) {
 const handle = document.getElementById('sheetHandle');
 const sidebarEl = document.getElementById('sidebar');
 
-// Prevent ALL touch events on the sidebar from reaching the map
-sidebarEl.addEventListener('touchstart', e => {
-  if (!isMobile()) return;
-  e.stopPropagation();
-}, { passive: true });
-sidebarEl.addEventListener('touchmove', e => {
-  if (!isMobile()) return;
-  e.stopPropagation();
-}, { passive: true });
-sidebarEl.addEventListener('touchend', e => {
-  if (!isMobile()) return;
-  e.stopPropagation();
-}, { passive: true });
-
-// Handle drag
+// Handle drag — all listeners on the handle itself, no stopPropagation on sidebar
 handle.addEventListener('touchstart', e => {
   if (!isMobile()) return;
   isDragging = true;
@@ -1473,10 +1459,9 @@ handle.addEventListener('touchstart', e => {
   dragStartH = sidebarEl.offsetHeight;
   sidebarEl.classList.add('dragging');
   e.preventDefault();
-  e.stopPropagation();
 }, { passive: false });
 
-document.addEventListener('touchmove', e => {
+handle.addEventListener('touchmove', e => {
   if (!isDragging) return;
   e.preventDefault();
   const dy = dragStartY - e.touches[0].clientY;
@@ -1484,7 +1469,7 @@ document.addEventListener('touchmove', e => {
   setSheetHeight(newH);
 }, { passive: false });
 
-document.addEventListener('touchend', () => {
+handle.addEventListener('touchend', () => {
   if (!isDragging) return;
   isDragging = false;
   const h = sidebarEl.offsetHeight;
