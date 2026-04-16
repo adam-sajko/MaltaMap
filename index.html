@@ -445,7 +445,7 @@
       .sidebar-header h1 { font-size: 1.05rem; }
       .sidebar-header p { font-size: .7rem; }
 
-      .day-tabs { flex-shrink: 0; overflow-x: auto; touch-action: none; }
+      .day-tabs { flex-shrink: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
       .day-tab { padding: 12px 8px; font-size: .74rem; }
 
       .tag-filters { padding: 8px 12px; gap: 4px; flex-shrink: 0; }
@@ -518,8 +518,8 @@
       <h1>🇲🇹 Malta Trip</h1>
       <p>4-day itinerary · Sliema base</p>
     </div>
-    <div class="day-tabs" id="dayTabs"></div>
   </div>
+  <div class="day-tabs" id="dayTabs"></div>
   <div class="tag-filters" id="tagFilters"></div>
   <div class="place-list" id="placeList"></div>
   <div class="info-panel" id="infoPanel"></div>
@@ -1458,7 +1458,6 @@ const sidebarEl = document.getElementById('sidebar');
 
 function initDrag(e) {
   if (!isMobile()) return;
-  if (e.target.closest('.day-tab')) return;
   isDragging = true;
   dragStartY = e.touches[0].clientY;
   dragStartH = sidebarEl.offsetHeight;
@@ -1487,7 +1486,6 @@ dragZone.addEventListener('touchend', endDrag, { capture: true });
 
 dragZone.addEventListener('click', e => {
   if (!isMobile()) return;
-  if (e.target.closest('.day-tab')) return;
   const cycle = { peek: 'half', half: 'full', full: 'peek' };
   snapSheet(cycle[sheetState] || 'half');
 });
