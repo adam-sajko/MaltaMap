@@ -441,11 +441,11 @@
         background: rgba(255,255,255,.3);
       }
 
-      .sidebar-header { padding: 10px 16px 8px; }
+      .sidebar-header { padding: 10px 16px 8px; touch-action: none; }
       .sidebar-header h1 { font-size: 1.05rem; }
       .sidebar-header p { font-size: .7rem; }
 
-      .day-tabs { flex-shrink: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .day-tabs { flex-shrink: 0; overflow-x: auto; touch-action: none; }
       .day-tab { padding: 12px 8px; font-size: .74rem; }
 
       .tag-filters { padding: 8px 12px; gap: 4px; flex-shrink: 0; }
@@ -1453,36 +1453,41 @@ function snapToNearest(h) {
   snapSheet(distances[0].state);
 }
 
-const handle = document.getElementById('sheetHandle');
+const dragZone = document.getElementById('sheetHandle');
 const sidebarEl = document.getElementById('sidebar');
 
-// Handle drag — all listeners on the handle itself, no stopPropagation on sidebar
-handle.addEventListener('touchstart', e => {
+function initDrag(e) {
   if (!isMobile()) return;
+  if (e.target.closest('.day-tab')) return;
   isDragging = true;
   dragStartY = e.touches[0].clientY;
   dragStartH = sidebarEl.offsetHeight;
   sidebarEl.classList.add('dragging');
   e.preventDefault();
-}, { passive: false });
+}
 
-handle.addEventListener('touchmove', e => {
+function moveDrag(e) {
   if (!isDragging) return;
   e.preventDefault();
   const dy = dragStartY - e.touches[0].clientY;
   const newH = Math.max(SNAP_PEEK, Math.min(window.innerHeight * 0.95, dragStartH + dy));
   setSheetHeight(newH);
-}, { passive: false });
+}
 
-handle.addEventListener('touchend', () => {
+function endDrag() {
   if (!isDragging) return;
   isDragging = false;
-  const h = sidebarEl.offsetHeight;
-  snapToNearest(h);
-});
+  sidebarEl.classList.remove('dragging');
+  snapToNearest(sidebarEl.offsetHeight);
+}
 
-handle.addEventListener('click', () => {
+dragZone.addEventListener('touchstart', initDrag, { passive: false, capture: true });
+dragZone.addEventListener('touchmove', moveDrag, { passive: false, capture: true });
+dragZone.addEventListener('touchend', endDrag, { capture: true });
+
+dragZone.addEventListener('click', e => {
   if (!isMobile()) return;
+  if (e.target.closest('.day-tab')) return;
   const cycle = { peek: 'half', half: 'full', full: 'peek' };
   snapSheet(cycle[sheetState] || 'half');
 });
