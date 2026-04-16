@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Malta Trip Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --sidebar-width: 380px;
+      --bg: #0f1923;
+      --bg-card: #182633;
+      --bg-card-hover: #1e3044;
+      --text: #e8eaed;
+      --text-muted: #8b9db5;
+      --border: #263b50;
+      --radius: 10px;
+      --shadow: 0 4px 24px rgba(0,0,0,.35);
+      --fri: #e85d04;
+      --sat: #0096c7;
+      --sun: #2d6a4f;
+      --mon: #7b2cbf;
+      --walk: #e63946;
+      --transport: #6c757d;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-width);
+      min-width: var(--sidebar-width);
+      height: 100vh;
+      background: var(--bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 1000;
+      transition: transform .3s ease, min-width .3s ease, width .3s ease;
+    }
+    .sidebar.collapsed { transform: translateX(calc(-1 * var(--sidebar-width))); min-width: 0; width: 0; }
+
+    .sidebar-header {
+      padding: 20px 20px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-header h1 { font-size: 1.2rem; font-weight: 700; display: flex; align-items: center; gap: 8px; line-height: 1.2; }
+    .sidebar-header p { color: var(--text-muted); font-size: .76rem; margin-top: 3px; line-height: 1; }
+
+    /* Day tabs */
+    .day-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    .day-tab {
+      flex: 1;
+      padding: 10px 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all .2s;
+      white-space: nowrap;
+      font-family: inherit;
+      line-height: 1;
+    }
+    .day-tab:hover { color: var(--text); }
+    .day-tab.active { color: var(--text); }
+    .day-tab[data-day="all"].active { border-bottom-color: var(--text); }
+    .day-tab[data-day="fri"].active { border-bottom-color: var(--fri); color: var(--fri); }
+    .day-tab[data-day="sat"].active { border-bottom-color: var(--sat); color: var(--sat); }
+    .day-tab[data-day="sun"].active { border-bottom-color: var(--sun); color: var(--sun); }
+    .day-tab[data-day="mon"].active { border-bottom-color: var(--mon); color: var(--mon); }
+    .day-tab[data-day="walks"].active { border-bottom-color: var(--walk); color: var(--walk); }
+    .day-tab[data-day="transport"].active { border-bottom-color: var(--transport); color: var(--transport); }
+
+    /* Tag filters */
+    .tag-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tag-btn {
+      padding: 4px 10px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: transparent;
+      font-size: .68rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all .2s;
+      color: var(--text-muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      font-family: inherit;
+      line-height: 1;
+    }
+    .tag-btn:hover { border-color: var(--text-muted); color: var(--text); }
+    .tag-btn.active { color: #fff; }
+
+    .place-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .place-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: .62rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 500;
+      letter-spacing: .02em;
+      background: rgba(255,255,255,.06);
+      color: var(--text-muted);
+    }
+    .place-tag .tag-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Place list */
+    .place-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .place-list::-webkit-scrollbar { width: 5px; }
+    .place-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .day-section { margin-bottom: 14px; }
+    .day-section-title {
+      font-size: .68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      padding: 7px 10px;
+      margin-bottom: 5px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+      line-height: 1;
+    }
+    .day-section-title.collapsible { cursor: pointer; }
+    .day-section-title .chevron {
+      font-size: .55rem;
+      transition: transform .2s;
+      opacity: .6;
+    }
+    .day-section-title .chevron.collapsed { transform: rotate(-90deg); }
+    .day-section-body.collapsed { display: none; }
+
+    .place-card {
+      padding: 10px 12px;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      margin-bottom: 5px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: all .15s;
+    }
+    .place-card:hover { background: var(--bg-card-hover); }
+    .place-card.active {
+      background: var(--bg-card-hover);
+      border-left-width: 4px;
+    }
+
+    .place-card-header { display: flex; align-items: center; gap: 8px; }
+    .place-icon {
+      width: 26px; height: 26px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .82rem;
+      flex-shrink: 0;
+    }
+    .place-card-header h3 {
+      font-size: .82rem;
+      font-weight: 600;
+      flex: 1;
+      line-height: 1.3;
+    }
+    .step-num {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: .62rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      color: #fff;
+      line-height: 1;
+    }
+    .place-card p {
+      margin-top: 5px;
+      font-size: .74rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .place-card .place-tags { margin-top: 5px; }
+
+    /* Timeline connector between steps */
+    .timeline-connector {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 0 3px 22px;
+      font-size: .66rem;
+      color: var(--text-muted);
+      position: relative;
+      line-height: 1.3;
+    }
+    .timeline-connector::before {
+      content: '';
+      position: absolute;
+      left: 22px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--border);
+    }
+    .timeline-connector .conn-icon {
+      font-size: .72rem;
+      flex-shrink: 0;
+      width: 16px;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    .timeline-connector a {
+      color: var(--sat);
+      text-decoration: none;
+      font-size: .62rem;
+      flex-shrink: 0;
+    }
+    .timeline-connector a:hover { text-decoration: underline; }
+
+    /* Info sub-tabs */
+    .info-subtabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 10px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .info-subtab {
+      flex: 1;
+      padding: 8px 8px;
+      text-align: center;
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-muted);
+      border: none;
+      transition: all .15s;
+      font-family: inherit;
+      line-height: 1;
+    }
+    .info-subtab:not(:last-child) { border-right: 1px solid var(--border); }
+    .info-subtab:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .info-subtab.active { color: var(--text); background: var(--bg-card); }
+
+    /* Info panel at bottom */
+    .info-panel {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      font-size: .68rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .info-panel a { color: var(--sat); text-decoration: none; }
+    .info-panel a:hover { text-decoration: underline; }
+
+    /* Walk info cards */
+    .walk-info {
+      padding: 14px;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      margin-bottom: 8px;
+      border-left: 3px solid var(--walk);
+    }
+    .walk-info h3 { font-size: .84rem; font-weight: 700; margin-bottom: 5px; line-height: 1.3; }
+    .walk-info .walk-meta { font-size: .7rem; color: var(--text-muted); margin-bottom: 5px; line-height: 1; }
+    .walk-info p { font-size: .74rem; color: var(--text-muted); line-height: 1.5; }
+    .walk-info .walk-btn {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      background: rgba(230,57,70,.15);
+      color: var(--walk);
+      font-size: .72rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    .walk-info .walk-btn:hover { background: rgba(230,57,70,.25); }
+
+    /* ── Map ── */
+    .map-wrapper { flex: 1; position: relative; }
+    #map { height: 100%; width: 100%; }
+
+    .toggle-sidebar {
+      position: absolute;
+      top: 12px; left: 12px;
+      z-index: 1001;
+      width: 38px; height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+    }
+    .toggle-sidebar:hover { background: var(--bg-card-hover); }
+
+    /* Legend */
+    .map-legend {
+      position: absolute;
+      bottom: 24px; right: 12px;
+      z-index: 1001;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      box-shadow: var(--shadow);
+      font-size: .72rem;
+    }
+    .legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .legend-row:last-child { margin-bottom: 0; }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .legend-line {
+      width: 18px; height: 3px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* Popup */
+    .leaflet-popup-content-wrapper {
+      background: var(--bg-card) !important;
+      color: var(--text) !important;
+      border-radius: var(--radius) !important;
+      border: 1px solid var(--border) !important;
+      box-shadow: var(--shadow) !important;
+    }
+    .leaflet-popup-tip { background: var(--bg-card) !important; }
+    .popup-title { font-weight: 700; font-size: .88rem; margin-bottom: 2px; line-height: 1.3; }
+    .popup-day { font-size: .65rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; line-height: 1; margin-bottom: 3px; }
+    .popup-desc { font-size: .76rem; color: var(--text-muted); margin-top: 5px; line-height: 1.45; }
+
+    /* Drag handle — hidden on desktop */
+    .sheet-handle { display: none; }
+
+    @media (max-width: 720px) {
+      :root {
+        --sheet-peek: 110px;
+        --sheet-half: 50vh;
+        --sheet-full: 90vh;
+      }
+
+      body { flex-direction: column; }
+
+      .map-wrapper { height: 100vh; width: 100%; }
+
+      .sidebar {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        width: 100% !important;
+        min-width: 100% !important;
+        height: var(--sheet-peek);
+        max-height: 95vh;
+        z-index: 1500;
+        border-right: none;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -4px 30px rgba(0,0,0,.5);
+        transition: height .3s cubic-bezier(.32,.72,0,1);
+        transform: none !important;
+        overflow: hidden;
+      }
+      .sidebar.collapsed {
+        transform: none !important;
+        height: var(--sheet-peek) !important;
+      }
+      .sidebar.dragging { transition: none; }
+
+      .sheet-handle {
+        display: flex;
+        justify-content: center;
+        padding: 10px 0 4px;
+        cursor: grab;
+        flex-shrink: 0;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .sheet-handle .handle-bar {
+        width: 36px;
+        height: 4px;
+        border-radius: 2px;
+        background: rgba(255,255,255,.2);
+      }
+
+      .sidebar-header { padding: 10px 16px 8px; }
+      .sidebar-header h1 { font-size: 1.05rem; }
+      .sidebar-header p { font-size: .7rem; }
+
+      .day-tabs { flex-shrink: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .day-tab { padding: 12px 8px; font-size: .74rem; }
+
+      .tag-filters { padding: 8px 12px; gap: 4px; flex-shrink: 0; }
+      .tag-btn { padding: 5px 10px; font-size: .7rem; }
+
+      .place-list { padding: 8px 10px; min-height: 0; }
+      .place-card { padding: 10px 12px; }
+
+      .info-panel {
+        padding: 10px 14px;
+        padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+      }
+
+      .toggle-sidebar { display: none !important; }
+
+      .map-legend {
+        bottom: calc(var(--sheet-peek) + 10px);
+        right: 8px;
+        font-size: .66rem;
+        padding: 8px 12px;
+      }
+
+      /* Touch-friendly link targets on mobile */
+      .place-tag {
+        padding: 5px 10px;
+        font-size: .68rem;
+        min-height: 28px;
+      }
+      .timeline-connector a {
+        padding: 6px 10px;
+        margin: -6px -4px;
+        font-size: .68rem;
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+      }
+      .place-card a {
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+      }
+      .info-panel a {
+        display: inline-block;
+        padding: 4px 0;
+        min-height: 32px;
+        line-height: 24px;
+      }
+      .ride-link {
+        min-height: 38px !important;
+        padding: 8px 4px !important;
+      }
+      .tips-link {
+        display: block !important;
+        padding: 10px 12px !important;
+        margin: 4px 0 !important;
+        background: rgba(255,255,255,.03);
+        border-radius: 6px;
+        min-height: 40px;
+        line-height: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sheet-handle" id="sheetHandle"><div class="handle-bar"></div></div>
+  <div class="sidebar-header">
+    <h1>🇲🇹 Malta Trip</h1>
+    <p>4-day itinerary · Sliema base</p>
+  </div>
+  <div class="day-tabs" id="dayTabs"></div>
+  <div class="tag-filters" id="tagFilters"></div>
+  <div class="place-list" id="placeList"></div>
+  <div class="info-panel" id="infoPanel"></div>
+</aside>
+
+<div class="map-wrapper">
+  <button class="toggle-sidebar" id="toggleSidebar">☰</button>
+  <div id="map"></div>
+  <div class="map-legend" id="legend"></div>
+</div>
+
+<script>
+// ── Day colors ──
+const DAY_COLORS = {
+  fri: '#e85d04',
+  sat: '#0096c7',
+  sun: '#2d6a4f',
+  mon: '#7b2cbf',
+};
+const DAY_LABELS = {
+  fri: 'Friday',
+  sat: 'Saturday',
+  sun: 'Sunday',
+  mon: 'Monday',
+};
+const WALK_COLOR = '#e63946';
+
+const TAGS = {
+  landmark:  { label: 'Landmark',     dot: '#d4956a' },
+  culture:   { label: 'Culture',      dot: '#8a9ab5' },
+  nature:    { label: 'Nature',       dot: '#6a9e80' },
+  beach:     { label: 'Beach',        dot: '#6ab0bd' },
+  food:      { label: 'Food & Drink', dot: '#c47a7a' },
+  history:   { label: 'History',      dot: '#d4956a' },
+  church:    { label: 'Church',       dot: '#8a9ab5' },
+  viewpoint: { label: 'Viewpoint',    dot: '#6a9e80' },
+  town:      { label: 'Town',         dot: '#8a929a' },
+  transport: { label: 'Transport',    dot: '#8a929a' },
+  stay:      { label: 'Stay',         dot: '#6ab0bd' },
+};
+
+// ── All places from your trip docs ──
+const PLACES = [
+  // FRIDAY — Valletta + Birgu + Sliema
+  { id: 'f1',  day: 'fri', step: 1,  name: 'Malta Airport',               lat: 35.8575, lng: 14.4775, emoji: '✈️', tags: ['transport'], desc: 'Arrive. Take bus TD4 to Valletta (every 30 min, ~15 min ride).' },
+  { id: 'f2',  day: 'fri', step: 2,  name: 'Valletta — City Gate',        lat: 35.8953, lng: 14.5088, emoji: '🏛️', tags: ['landmark'], desc: 'Main entrance to the baroque fortress city. Drop bags at luggage storage, grab breakfast.' },
+  { id: 'f3',  day: 'fri', step: 3,  name: 'New Parliament Building',     lat: 35.8958, lng: 14.5094, emoji: '🏗️', tags: ['landmark'], desc: 'Designed by Renzo Piano, completed 2015.' },
+  { id: 'f4',  day: 'fri', step: 4,  name: 'Hastings Gardens',            lat: 35.8975, lng: 14.5078, emoji: '🌿', tags: ['nature', 'viewpoint'], desc: 'Overlooks Floriana. Resting place of Governor Hastings (1754-1826).' },
+  { id: 'f5',  day: 'fri', step: 5,  name: 'St Paul\'s Pro-Cathedral',    lat: 35.8985, lng: 14.5108, emoji: '⛪', tags: ['church'], desc: 'Anglican cathedral with iconic spire visible across the city.' },
+  { id: 'f6',  day: 'fri', step: 6,  name: 'Teatru Manoel',               lat: 35.8988, lng: 14.5119, emoji: '🎭', tags: ['culture'], desc: 'One of the oldest working theatres in Europe (1731).' },
+  { id: 'f7',  day: 'fri', step: 7,  name: 'St John\'s Co-Cathedral',     lat: 35.8978, lng: 14.5128, emoji: '⛪', tags: ['church', 'culture'], desc: 'Caravaggio masterpieces & one of the finest Baroque interiors in Europe.' },
+  { id: 'f8',  day: 'fri', step: 8,  name: 'Grandmaster\'s Palace',       lat: 35.8968, lng: 14.5140, emoji: '🏰', tags: ['landmark', 'history'], desc: 'Pjazza San Ġorġ — towering over the square.' },
+  { id: 'f9',  day: 'fri', step: 9,  name: 'Fort St Elmo / War Museum',   lat: 35.9011, lng: 14.5188, emoji: '🏰', tags: ['history', 'culture'], desc: 'Houses the National War Museum at the tip of the peninsula.' },
+  { id: 'f10', day: 'fri', step: 10, name: 'Siege Bell Memorial',         lat: 35.9002, lng: 14.5195, emoji: '🔔', tags: ['history', 'viewpoint'], desc: 'WWII Santa Maria Bell, in memory of all who died.' },
+  { id: 'f11', day: 'fri', step: 11, name: 'Lower Barrakka Gardens',      lat: 35.8968, lng: 14.5180, emoji: '🌿', tags: ['nature', 'viewpoint'], desc: 'Peaceful gardens with harbour views.' },
+  { id: 'f12', day: 'fri', step: 12, name: 'Upper Barrakka Gardens',      lat: 35.8942, lng: 14.5116, emoji: '🌿', tags: ['nature', 'viewpoint'], desc: 'Spectacular Grand Harbour view. Saluting Battery fires at noon & 4pm.' },
+  { id: 'f13', day: 'fri', step: 13, name: 'Auberge de Castille',         lat: 35.8942, lng: 14.5098, emoji: '🏛️', tags: ['landmark', 'history'], desc: 'Office of the Prime Minister.' },
+  { id: 'f14', day: 'fri', step: 14, name: 'National Museum of Archaeology', lat: 35.8962, lng: 14.5104, emoji: '🏛️', tags: ['culture', 'history'], desc: 'Prehistoric artefacts from Malta\'s temple period.' },
+  { id: 'f15', day: 'fri', step: 15, name: 'Strait Street',               lat: 35.8976, lng: 14.5145, emoji: '🍷', tags: ['food'], desc: 'Former red-light district, now buzzing with bars & restaurants.' },
+
+  // SATURDAY — Blue Grotto, Ħaġar Qim, Dingli, Rabat
+  { id: 's1',  day: 'sat', step: 1,  name: 'Blue Grotto',                 lat: 35.8194, lng: 14.4542, emoji: '🌊', tags: ['nature', 'viewpoint'], desc: 'Take bus 74 from Valletta. Sea cavern boat ride — go early morning for best light.' },
+  { id: 's2',  day: 'sat', step: 2,  name: 'Wied iż-Żurrieq',            lat: 35.8224, lng: 14.4530, emoji: '⛵', tags: ['nature'], desc: 'Small creek with boat rides departing to Blue Grotto.' },
+  { id: 's3',  day: 'sat', step: 3,  name: 'Ħaġar Qim Temples',          lat: 35.8270, lng: 14.4418, emoji: '🏛️', tags: ['history', 'culture'], desc: 'Megalithic temple complex, 3600–3200 BC. Allow ~1 hour.' },
+  { id: 's4',  day: 'sat', step: 4,  name: 'Mnajdra Temples',             lat: 35.8262, lng: 14.4363, emoji: '🏛️', tags: ['history', 'culture'], desc: 'Further downhill from Ħaġar Qim. Excellent interpretation centre.' },
+  { id: 's5',  day: 'sat', step: 5,  name: 'Dingli Cliffs',               lat: 35.8528, lng: 14.3830, emoji: '🏔️', tags: ['nature', 'viewpoint'], desc: 'Highest point of Malta with dramatic cliff-edge walks. View of Filfla island.' },
+  { id: 's6',  day: 'sat', step: 6,  name: 'St Mary Magdalene Chapel',    lat: 35.8570, lng: 14.3800, emoji: '⛪', tags: ['church', 'viewpoint'], desc: 'Small countryside church at the cliff edge, panoramic views of sea and fields.' },
+  { id: 's7',  day: 'sat', step: 7,  name: 'Rabat, Malta',                lat: 35.8820, lng: 14.3992, emoji: '🏘️', tags: ['town'], desc: 'Bus from Dingli. Adjacent to Mdina, worth a wander.' },
+
+  // SUNDAY — Gozo: ferry → hike (Xlendi Walk) → sightseeing
+  { id: 'u1',  day: 'sun', step: 1,  name: 'Gozo Fast Ferry (Valletta)',  lat: 35.8935, lng: 14.5074, emoji: '⛴️', tags: ['transport'], desc: 'High-speed ferry from Valletta to Mġarr harbour.' },
+  { id: 'u2',  day: 'sun', step: 2,  name: 'Mġarr Harbour, Gozo',        lat: 36.0258, lng: 14.2990, emoji: '⚓', tags: ['town', 'viewpoint'], desc: 'Gozo\'s only all-weather harbour. Luzzu boats with eye-of-Horus.' },
+  { id: 'u3',  day: 'sun', step: 3,  name: 'Fort Chambray',               lat: 36.0270, lng: 14.2930, emoji: '🏰', tags: ['history', 'landmark'], desc: '18th century Knights\' fortress. Start of the Xlendi Walk (12 km coastal hike).' },
+  { id: 'u4',  day: 'sun', step: 4,  name: 'Mġarr ix-Xini Tower',        lat: 36.0222, lng: 14.2700, emoji: '🏰', tags: ['history', 'nature'], desc: 'Coastal watchtower (1661) at the fjord-like bay. Stunning cliff views of Ta\' Ċenċ.' },
+  { id: 'u5',  day: 'sun', step: 5,  name: 'Ta\' Sannat Cliffs',          lat: 36.0185, lng: 14.2500, emoji: '🏔️', tags: ['nature', 'viewpoint'], desc: '140m vertical cliffs. Garigue habitat, shearwater nesting site. Best views on Gozo.' },
+  { id: 'u6',  day: 'sun', step: 6,  name: 'Xlendi Bay',                  lat: 36.0282, lng: 14.2158, emoji: '🏖️', tags: ['beach', 'food'], desc: 'End of the hike! Seaside village with restaurants. Well-earned rest and swim.' },
+  { id: 'u7',  day: 'sun', step: 7,  name: 'Xlendi Tower',                lat: 36.0270, lng: 14.2130, emoji: '🏰', tags: ['history', 'viewpoint'], desc: '1650 coastal watchtower by Grand Master Lascaris. Salt pans nearby.' },
+  { id: 'u8',  day: 'sun', step: 8,  name: 'Victoria / Rabat, Gozo',     lat: 36.0465, lng: 14.2390, emoji: '🏘️', tags: ['town'], desc: 'Bus 330 from Xlendi (~15 min). Gozo\'s capital.' },
+  { id: 'u9',  day: 'sun', step: 9,  name: 'The Citadel',                 lat: 36.0462, lng: 14.2395, emoji: '🏰', tags: ['landmark', 'history', 'viewpoint'], desc: 'Fortified city with cathedral, museums & panoramic views of all Gozo.' },
+  { id: 'u10', day: 'sun', step: 10, name: 'Nadur',                       lat: 36.0432, lng: 14.2870, emoji: '🏘️', tags: ['town', 'food'], desc: 'Bus 303 from Victoria. Try a traditional ftira before heading back to Mġarr.' },
+
+  // MONDAY — Mdina + Rabat + San Anton + Birgu + Fireworks Festival
+  { id: 'm1',  day: 'mon', step: 1,  name: 'Mdina — Silent City',         lat: 35.8858, lng: 14.4028, emoji: '🏛️', tags: ['landmark', 'history', 'viewpoint'], desc: 'Bus 202 from Sliema. Medieval walled town with narrow lanes and panoramic views.' },
+  { id: 'm2',  day: 'mon', step: 2,  name: 'Rabat, Malta',                lat: 35.8820, lng: 14.3992, emoji: '🏘️', tags: ['town', 'history'], desc: 'Walk from Mdina. St Paul\'s Catacombs and Domus Romana nearby.' },
+  { id: 'm3',  day: 'mon', step: 3,  name: 'San Anton Gardens',           lat: 35.8953, lng: 14.4276, emoji: '🌿', tags: ['nature'], desc: 'Presidential palace gardens. Bus from Rabat.' },
+  { id: 'm4',  day: 'mon', step: 4,  name: 'Malta Aviation Museum',       lat: 35.8920, lng: 14.4165, emoji: '✈️', tags: ['culture', 'history'], desc: 'Ta\' Qali Aerodrome. WWII-era aircraft, Spitfires, helicopters. Adults €9. Mon–Sat 9–5, last entry 4pm.' },
+  { id: 'm5',  day: 'mon', step: 5,  name: 'Birgu (Vittoriosa)',          lat: 35.8878, lng: 14.5225, emoji: '🏘️', tags: ['town', 'history'], desc: 'Historic Three Cities. Ferry from Valletta across Grand Harbour.' },
+  { id: 'm6',  day: 'mon', step: 6,  name: 'Fireworks Festival',          lat: 35.8930, lng: 14.5170, emoji: '🎆', tags: ['culture'], desc: 'Malta International Fireworks Festival — 25th anniversary! Grand Harbour, 20 Apr. Doors 19:00, fireworks ~20:00. Tickets ~€4. Free views from Birgu bastions or Upper Barrakka.' },
+  { id: 'm7',  day: 'mon', step: 7,  name: 'Ferry back to Valletta',     lat: 35.8938, lng: 14.5155, emoji: '⛴️', tags: ['transport'], desc: 'Three Cities ferry back to Valletta after the fireworks.' },
+
+  // ACCOMMODATION
+  { id: 'h1',  day: 'fri', step: 99, name: 'Sliema (Accommodation)',      lat: 35.9122, lng: 14.5020, emoji: '🏨', tags: ['stay'], desc: 'Base for the trip. Ferry to Valletta, buses to Mdina/airport.' },
+];
+
+// ── Walking routes (polylines) ──
+const WALKS = [
+  {
+    id: 'w1',
+    name: 'Dingli – Fawwara – Blue Grotto Walk',
+    distance: '11.2 km',
+    desc: 'Rural walk from Dingli Cliffs past Bronze Age village, Fawwara countryside, Ħaġar Qim & Mnajdra temples to Wied iż-Żurrieq (Blue Grotto). Red trail markers.',
+    relevantDay: 'sat',
+    coords: [
+      [35.8570, 14.3800], // Dingli Cliffs start
+      [35.8545, 14.3820],
+      [35.8500, 14.3860], // Cart ruts area
+      [35.8440, 14.3910], // Bronze Age village headland
+      [35.8410, 14.3960], // Fawwara area
+      [35.8370, 14.4020], // Mt Carmel chapel
+      [35.8330, 14.4120], // Annunciation Church
+      [35.8300, 14.4200], // Dar tal-Providenza
+      [35.8270, 14.4300],
+      [35.8270, 14.4418], // Ħaġar Qim
+      [35.8262, 14.4363], // Mnajdra
+      [35.8240, 14.4450],
+      [35.8224, 14.4530], // Wied iż-Żurrieq
+      [35.8194, 14.4542], // Blue Grotto
+    ],
+  },
+  {
+    id: 'w2',
+    name: 'Valletta Commonwealth Walkway',
+    distance: '~3 km',
+    desc: '20-stop walking tour of Valletta: City Gate → Parliament → Hastings Gardens → St Paul\'s → Teatru Manoel → St John\'s Co-Cathedral → Fort St Elmo → Barrakka Gardens → Strait Street.',
+    relevantDay: 'fri',
+    coords: [
+      [35.8953, 14.5088], // City Gate
+      [35.8958, 14.5094], // Parliament
+      [35.8975, 14.5078], // Hastings Gardens
+      [35.8985, 14.5108], // St Paul's
+      [35.8988, 14.5119], // Teatru Manoel
+      [35.8978, 14.5128], // St John's
+      [35.8968, 14.5140], // Grandmaster's
+      [35.9000, 14.5145],
+      [35.9011, 14.5188], // Fort St Elmo
+      [35.9002, 14.5195], // Siege Bell
+      [35.8985, 14.5185],
+      [35.8968, 14.5180], // Lower Barrakka
+      [35.8950, 14.5170],
+      [35.8935, 14.5155],
+      [35.8930, 14.5125],
+      [35.8942, 14.5116], // Upper Barrakka
+      [35.8942, 14.5098], // Auberge de Castille
+      [35.8953, 14.5088], // back to City Gate
+    ],
+  },
+  {
+    id: 'w3',
+    name: 'Xlendi Walk (Gozo)',
+    distance: '12 km',
+    desc: 'L-Imġarr Harbour → Fort Chambray → Mġarr ix-Xini → Ta\' Sannat clifftops (140m!) → Wied tal-Kantra → Xlendi Bay. Coastal and countryside, moderate difficulty.',
+    relevantDay: 'sun',
+    coords: [
+      [36.0258, 14.2990], // Mġarr Harbour
+      [36.0270, 14.2930], // Fort Chambray
+      [36.0235, 14.2870],
+      [36.0210, 14.2810], // Xatt l-Ahmar coast
+      [36.0222, 14.2700], // Mġarr ix-Xini tower
+      [36.0215, 14.2650], // Mġarr ix-Xini bay
+      [36.0200, 14.2580],
+      [36.0185, 14.2500], // Ta' Sannat cliffs
+      [36.0190, 14.2420],
+      [36.0210, 14.2350], // Il-Pinnur headland
+      [36.0230, 14.2280], // Tal-Bardan
+      [36.0260, 14.2220],
+      [36.0282, 14.2158], // Xlendi Bay
+    ],
+  },
+];
+
+// ── Bus routes with approximate paths ──
+const BUS_COLOR = '#f4a261';
+const FERRY_COLOR = '#48cae4';
+
+const BUS_ROUTES = [
+  {
+    id: 'td4', name: 'TD4 — Airport ↔ Valletta', type: 'bus',
+    detail: 'tallinja Direct, every 30 min · ~15 min',
+    url: 'https://www.publictransport.com.mt/route/TD4/',
+    days: ['fri', 'mon'],
+    coords: [
+      [35.8575, 14.4775], // Airport
+      [35.8590, 14.4830],
+      [35.8650, 14.4900], // Luqa
+      [35.8720, 14.4950], // Santa Lucija
+      [35.8770, 14.4990], // Paola
+      [35.8830, 14.5020], // Marsa
+      [35.8880, 14.5040], // Floriana approach
+      [35.8920, 14.5060],
+      [35.8953, 14.5088], // Valletta terminal
+    ],
+  },
+  {
+    id: 'b74', name: 'Bus 74 — Valletta → Blue Grotto', type: 'bus',
+    detail: 'Via Żurrieq · ~50 min',
+    url: 'https://www.publictransport.com.mt/route/74/',
+    days: ['sat'],
+    coords: [
+      [35.8953, 14.5088], // Valletta
+      [35.8880, 14.5040], // Floriana
+      [35.8830, 14.5020], // Marsa
+      [35.8770, 14.4990], // Paola
+      [35.8700, 14.4910],
+      [35.8630, 14.4820], // Mqabba area
+      [35.8530, 14.4720], // Żurrieq
+      [35.8430, 14.4660],
+      [35.8350, 14.4600],
+      [35.8270, 14.4540],
+      [35.8224, 14.4530], // Wied iż-Żurrieq
+      [35.8194, 14.4542], // Blue Grotto
+    ],
+  },
+  {
+    id: 'b202', name: 'Bus 202 — Sliema → Rabat/Mdina', type: 'bus',
+    detail: 'Via Attard, Mosta, Naxxar, St Julian\'s · ~70 min',
+    url: 'https://www.publictransport.com.mt/route/202/',
+    days: ['mon', 'sat'],
+    coords: [
+      [35.9122, 14.5020], // Sliema
+      [35.9100, 14.5060], // St Julian's
+      [35.9200, 14.5100], // Pembroke
+      [35.9180, 14.4900], // Swieqi
+      [35.9100, 14.4800], // San Gwann
+      [35.9050, 14.4650], // Naxxar
+      [35.8970, 14.4500], // Mosta
+      [35.8930, 14.4360], // Attard
+      [35.8880, 14.4180], // Ta' Qali area
+      [35.8858, 14.4028], // Mdina/Rabat
+    ],
+  },
+  {
+    id: 'b201', name: 'Bus 52/56 — Dingli → Rabat', type: 'bus',
+    detail: 'Several routes, ~15 min',
+    days: ['sat'],
+    coords: [
+      [35.8528, 14.3830], // Dingli Cliffs
+      [35.8570, 14.3850],
+      [35.8620, 14.3880], // Dingli village
+      [35.8700, 14.3920],
+      [35.8780, 14.3960],
+      [35.8820, 14.3992], // Rabat
+    ],
+  },
+  {
+    id: 'g303', name: 'Bus 303 — Victoria ↔ Mġarr via Nadur (Gozo)', type: 'bus',
+    detail: 'Via Xewkija, Nadur, Qala, Għajnsielem · ~40 min',
+    url: 'https://www.publictransport.com.mt/route/303/',
+    days: ['sun'],
+    coords: [
+      [36.0465, 14.2390], // Victoria
+      [36.0430, 14.2580], // Xewkija
+      [36.0432, 14.2870], // Nadur
+      [36.0280, 14.2870], // Qala
+      [36.0270, 14.2930], // Għajnsielem
+      [36.0258, 14.2990], // Mġarr Harbour
+    ],
+  },
+  {
+    id: 'g301', name: 'Bus 301 — Mġarr ↔ Victoria direct (Gozo)', type: 'bus',
+    detail: 'Via Għajnsielem, Xewkija · ~16 min',
+    url: 'https://www.publictransport.com.mt/route/301/',
+    days: ['sun'],
+    coords: [
+      [36.0258, 14.2990], // Mġarr Harbour
+      [36.0270, 14.2930], // Għajnsielem
+      [36.0360, 14.2780], // Xewkija
+      [36.0430, 14.2580],
+      [36.0465, 14.2390], // Victoria
+    ],
+  },
+  {
+    id: 'gxlendi', name: 'Bus 330 — Victoria → Xlendi (Gozo)', type: 'bus',
+    detail: 'Every 2 hours · ~15 min',
+    url: 'https://www.publictransport.com.mt/route/330/',
+    days: ['sun'],
+    coords: [
+      [36.0465, 14.2390], // Victoria
+      [36.0430, 14.2350],
+      [36.0400, 14.2300], // Munxar
+      [36.0360, 14.2250],
+      [36.0320, 14.2200],
+      [36.0282, 14.2158], // Xlendi
+    ],
+  },
+  {
+    id: 'td3', name: 'TD3 — Airport ↔ Sliema', type: 'bus',
+    detail: 'tallinja Direct, every 30 min · ~30 min',
+    url: 'https://www.publictransport.com.mt/route/TD3/',
+    days: [],
+    coords: [
+      [35.9122, 14.5020], // Sliema
+      [35.9080, 14.4960],
+      [35.9020, 14.4880], // Msida
+      [35.8950, 14.4820],
+      [35.8880, 14.4800], // Hamrun
+      [35.8800, 14.4790],
+      [35.8720, 14.4800],
+      [35.8650, 14.4810],
+      [35.8575, 14.4775], // Airport
+    ],
+  },
+  // Ferries — coords follow water, avoiding land
+  {
+    id: 'ferry-vs', name: 'Valletta ↔ Sliema Ferry', type: 'ferry',
+    detail: 'Every 30 min per direction (crossing every ~15 min) · ~5 min · Adult single €3.00, return €4.80',
+    url: 'https://www.vallettaferryservices.com/',
+    days: ['fri', 'sat', 'sun', 'mon'],
+    coords: [
+      [35.9018, 14.5093],
+      [35.9040, 14.5080],
+      [35.9060, 14.5055],
+      [35.9068, 14.5010],
+      [35.9068, 14.4965],
+    ],
+  },
+  {
+    id: 'ferry-birgu', name: 'Valletta → Birgu Boat', type: 'ferry',
+    detail: 'Three Cities ferry · Every 30 min per direction · Adult single €3.00, return €4.80',
+    url: 'https://www.vallettaferryservices.com/',
+    days: ['mon'],
+    coords: [
+      [35.8938, 14.5155],
+      [35.8920, 14.5175],
+      [35.8900, 14.5200],
+      [35.8885, 14.5220],
+    ],
+  },
+  {
+    id: 'gozo-hs', name: 'Gozo High Speed Ferry', type: 'ferry',
+    detail: 'Valletta → Mġarr · ~45 min · Adult return ~€15 (online ~€12)',
+    url: 'https://gozohighspeed.com/',
+    days: ['sun'],
+    coords: [
+      [35.8960, 14.5170],
+      [35.8995, 14.5270],
+      [35.9080, 14.5340],
+      [35.9200, 14.5400],
+      [35.9400, 14.5400],
+      [35.9600, 14.5350],
+      [35.9800, 14.5200],
+      [35.9950, 14.4900],
+      [36.0050, 14.4500],
+      [36.0100, 14.4000],
+      [36.0150, 14.3600],
+      [36.0180, 14.3300],
+      [36.0220, 14.3100],
+      [36.0258, 14.2990],
+    ],
+  },
+];
+
+// ── Ride estimation per day ──
+const RIDE_ESTIMATE = [
+  {
+    day: 'fri', label: 'Friday', rides: [
+      { route: 'TD4', from: 'Airport', to: 'Valletta', type: 'td', fare: 3.00, url: 'https://www.publictransport.com.mt/route/TD4/' },
+      { route: 'Ferry', from: 'Valletta', to: 'Sliema', type: 'ferry', fare: 3.00, note: 'single', url: 'https://www.vallettaferryservices.com/' },
+    ],
+  },
+  {
+    day: 'sat', label: 'Saturday', rides: [
+      { route: 'Ferry', from: 'Sliema', to: 'Valletta', type: 'ferry', fare: 3.00, note: 'single', url: 'https://www.vallettaferryservices.com/' },
+      { route: '74', from: 'Valletta', to: 'Blue Grotto', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/74/' },
+      { route: '52/56', from: 'Dingli', to: 'Rabat', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/52/' },
+      { route: '202', from: 'Rabat', to: 'Sliema', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/202/' },
+    ],
+  },
+  {
+    day: 'sun', label: 'Sunday', rides: [
+      { route: 'Ferry', from: 'Sliema', to: 'Valletta', type: 'ferry', fare: 3.00, note: 'single', url: 'https://www.vallettaferryservices.com/' },
+      { route: 'Gozo HS', from: 'Valletta', to: 'Mġarr', type: 'gozo', fare: 15.00, note: 'adult return', url: 'https://gozohighspeed.com/' },
+      { route: 'Hike', from: 'Fort Chambray', to: 'Xlendi', type: 'walk', fare: 0, note: '12 km, ~3.5 hrs' },
+      { route: '330', from: 'Xlendi', to: 'Victoria', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/330/' },
+      { route: '303', from: 'Victoria', to: 'Nadur', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/303/' },
+      { route: '303', from: 'Nadur', to: 'Mġarr', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/303/' },
+      { route: 'Gozo HS', from: 'Mġarr', to: 'Valletta', type: 'gozo', fare: 0, note: 'return leg', url: 'https://gozohighspeed.com/' },
+      { route: 'Ferry', from: 'Valletta', to: 'Sliema', type: 'ferry', fare: 3.00, note: 'single', url: 'https://www.vallettaferryservices.com/' },
+    ],
+  },
+  {
+    day: 'mon', label: 'Monday', rides: [
+      { route: '202', from: 'Sliema', to: 'Mdina', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/202/' },
+      { route: 'Bus', from: 'Rabat', to: 'San Anton', type: 'bus', fare: 2.00 },
+      { route: '202', from: 'Ta\' Qali', to: 'Valletta', type: 'bus', fare: 2.00, url: 'https://www.publictransport.com.mt/route/202/' },
+      { route: 'Ferry', from: 'Valletta', to: 'Birgu', type: 'ferry', fare: 4.80, note: 'return ticket', url: 'https://www.vallettaferryservices.com/' },
+      { route: 'Ferry', from: 'Birgu', to: 'Valletta', type: 'ferry', fare: 0, note: 'return leg', url: 'https://www.vallettaferryservices.com/' },
+      { route: 'TD4', from: 'Valletta', to: 'Airport', type: 'td', fare: 3.00, url: 'https://www.publictransport.com.mt/route/TD4/' },
+    ],
+  },
+];
+
+// ── Transport connectors between steps ──
+const CONNECTORS = {
+  'fri-1-2':   { mode: 'bus', label: 'TD4 bus, ~15 min', url: 'https://www.publictransport.com.mt/route/TD4/' },
+  'sat-1-2':   { mode: 'walk', label: 'Walk, ~2 min' },
+  'sat-2-3':   { mode: 'walk', label: 'Walk uphill, ~20 min' },
+  'sat-3-4':   { mode: 'walk', label: 'Walk downhill, ~10 min' },
+  'sat-4-5':   { mode: 'walk', label: 'Part of the rural walk route' },
+  'sat-5-6':   { mode: 'walk', label: 'Walk along cliffs, ~5 min' },
+  'sat-6-7':   { mode: 'bus', label: 'Bus 52/56, ~15 min', url: 'https://www.publictransport.com.mt/route/52/' },
+  'sun-1-2':   { mode: 'ferry', label: 'Gozo HS ferry, ~45 min', url: 'https://gozohighspeed.com/' },
+  'sun-2-3':   { mode: 'walk', label: 'Walk up to fort, ~10 min' },
+  'sun-3-4':   { mode: 'walk', label: 'Xlendi Walk — coastal path, ~1.5 hrs' },
+  'sun-4-5':   { mode: 'walk', label: 'Xlendi Walk — clifftop section, ~1 hr' },
+  'sun-5-6':   { mode: 'walk', label: 'Xlendi Walk — descent to bay, ~45 min' },
+  'sun-6-7':   { mode: 'walk', label: 'Walk to tower, ~5 min' },
+  'sun-7-8':   { mode: 'bus', label: 'Bus 330, ~15 min', url: 'https://www.publictransport.com.mt/route/330/' },
+  'sun-8-9':   { mode: 'walk', label: 'Walk uphill, ~5 min' },
+  'sun-9-10':  { mode: 'bus', label: 'Bus 303, ~20 min', url: 'https://www.publictransport.com.mt/route/303/' },
+  'mon-1-2':   { mode: 'walk', label: 'Walk, ~5 min' },
+  'mon-2-3':   { mode: 'bus', label: 'Bus from Rabat, ~20 min' },
+  'mon-3-4':   { mode: 'walk', label: 'Walk through Ta\' Qali, ~15 min' },
+  'mon-4-5':   { mode: 'ferry', label: 'Bus to Valletta, then ferry, ~50 min', url: 'https://www.vallettaferryservices.com/' },
+  'mon-5-6':   { mode: 'walk', label: 'Watch from Birgu bastions or ferry to Quarry Wharf' },
+  'mon-6-7':   { mode: 'ferry', label: 'Three Cities ferry, ~10 min', url: 'https://www.vallettaferryservices.com/' },
+};
+
+// ── State ──
+let activeDay = 'all';
+let activeTag = 'all';
+let activeInfoTab = 'routes';
+let collapsedDays = {};
+let activePlace = null;
+let walkLayers = [];
+let busLayers = [];
+let markerMap = {};
+
+// ── Map ──
+const map = L.map('map', { zoomControl: false }).setView([35.94, 14.42], 11);
+L.control.zoom({ position: 'topright' }).addTo(map);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+  maxZoom: 19,
+}).addTo(map);
+
+function makeIcon(place) {
+  const color = DAY_COLORS[place.day] || '#6c757d';
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width:30px;height:30px;border-radius:50%;
+      background:${color};
+      display:flex;align-items:center;justify-content:center;
+      font-size:14px;
+      box-shadow:0 2px 8px rgba(0,0,0,.4);
+      border:2px solid rgba(255,255,255,.2);
+      position:relative;
+    ">${place.emoji}<span style="
+      position:absolute;top:-6px;right:-6px;
+      width:16px;height:16px;border-radius:50%;
+      background:#0f1923;color:${color};
+      font-size:8px;font-weight:800;
+      display:flex;align-items:center;justify-content:center;
+      border:1px solid ${color};
+    ">${place.step < 90 ? place.step : ''}</span></div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -18],
+  });
+}
+
+function dayLabel(day) { return DAY_LABELS[day] || day; }
+function gmapUrl(lat, lng, name) { return `https://www.google.com/maps/search/${encodeURIComponent(name + ', Malta')}/@${lat},${lng},17z`; }
+
+function addMarkers(filteredPlaces) {
+  Object.values(markerMap).forEach(m => map.removeLayer(m));
+  markerMap = {};
+  filteredPlaces.forEach(p => {
+    const popupColor = DAY_COLORS[p.day] || '#6c757d';
+    const m = L.marker([p.lat, p.lng], { icon: makeIcon(p) })
+      .addTo(map)
+      .bindPopup(`
+        <div class="popup-day" style="color:${popupColor}">${dayLabel(p.day)} · Step ${p.step < 90 ? p.step : '—'}</div>
+        <div class="popup-title">${p.name}</div>
+        ${p.tags && p.tags.length ? `<div style="margin-top:4px">${p.tags.map(t => {
+          const tag = TAGS[t];
+          return tag ? `<span style="display:inline-flex;align-items:center;gap:3px;font-size:.62rem;padding:2px 7px;border-radius:8px;background:rgba(255,255,255,.06);color:#8b9db5;font-weight:500;margin-right:3px"><span style="width:5px;height:5px;border-radius:50%;background:${tag.dot}"></span>${tag.label}</span>` : '';
+        }).join('')}</div>` : ''}
+        <div class="popup-desc">${p.desc}</div>
+        <div style="margin-top:6px"><a href="${gmapUrl(p.lat, p.lng, p.name)}" target="_blank" style="font-size:.76rem;color:#48cae4;text-decoration:none;display:inline-block;padding:4px 0;min-height:32px;line-height:24px">📍 Open in Google Maps ↗</a></div>
+      `);
+    m.on('click', () => selectPlace(p.id));
+    markerMap[p.id] = m;
+  });
+}
+
+function addWalkLines(day) {
+  walkLayers.forEach(l => map.removeLayer(l));
+  walkLayers = [];
+  const relevant = day === 'all' || day === 'walks'
+    ? WALKS
+    : WALKS.filter(w => w.relevantDay === day);
+  relevant.forEach(w => {
+    const line = L.polyline(w.coords, {
+      color: WALK_COLOR,
+      weight: 3,
+      opacity: 0.7,
+      dashArray: '8,6',
+    }).addTo(map);
+    line.bindPopup(`<div class="popup-title">${w.name}</div><div class="popup-desc">${w.distance} — ${w.desc}</div>`);
+    walkLayers.push(line);
+  });
+}
+
+function addBusLines(day) {
+  busLayers.forEach(l => map.removeLayer(l));
+  busLayers = [];
+  if (day === 'walks') return;
+  const relevant = (day === 'all' || day === 'transport')
+    ? BUS_ROUTES
+    : BUS_ROUTES.filter(r => r.days.includes(day));
+  relevant.forEach(r => {
+    const isFerry = r.type === 'ferry';
+    const line = L.polyline(r.coords, {
+      color: isFerry ? FERRY_COLOR : BUS_COLOR,
+      weight: isFerry ? 2.5 : 3,
+      opacity: 0.7,
+      dashArray: isFerry ? '6,8' : null,
+    }).addTo(map);
+    line.bindPopup(`
+      <div class="popup-title">${isFerry ? '⛴️' : '🚌'} ${r.name}</div>
+      <div class="popup-desc">${r.detail}</div>
+      ${r.url ? `<div style="margin-top:6px"><a href="${r.url}" target="_blank" style="font-size:.76rem;color:#48cae4;text-decoration:none;display:inline-block;padding:4px 0;min-height:32px;line-height:24px">${isFerry ? '⛴️ Book / schedule' : '🚌 Timetable'} ↗</a></div>` : ''}
+    `);
+    busLayers.push(line);
+  });
+}
+
+function filteredPlaces() {
+  let list = PLACES;
+  if (activeDay !== 'all' && activeDay !== 'walks' && activeDay !== 'transport') {
+    list = list.filter(p => p.day === activeDay);
+  }
+  if (activeTag !== 'all') {
+    list = list.filter(p => p.tags && p.tags.includes(activeTag));
+  }
+  return list;
+}
+
+function renderTagFilters() {
+  const el = document.getElementById('tagFilters');
+  if (activeDay === 'walks' || activeDay === 'transport') {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = '';
+  const usedTags = [...new Set(PLACES.flatMap(p => p.tags || []))];
+  let html = `<button class="tag-btn ${activeTag === 'all' ? 'active' : ''}" data-tag="all" style="${activeTag === 'all' ? 'background:var(--text-muted);border-color:var(--text-muted);color:#fff' : ''}">All</button>`;
+  usedTags.forEach(t => {
+    const tag = TAGS[t];
+    if (!tag) return;
+    const isActive = activeTag === t;
+    html += `<button class="tag-btn ${isActive ? 'active' : ''}" data-tag="${t}" style="${isActive ? `background:rgba(255,255,255,.12);border-color:${tag.dot};color:var(--text)` : `border-color:${tag.dot}40;color:var(--text-muted)`}"><span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${tag.dot};margin-right:4px"></span>${tag.label}</button>`;
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('.tag-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeTag = btn.dataset.tag;
+      activePlace = null;
+      renderTagFilters();
+      renderList();
+      const places = filteredPlaces();
+      addMarkers(places);
+    });
+  });
+}
+
+// ── Tabs ──
+function renderTabs() {
+  const tabs = document.getElementById('dayTabs');
+  const items = [
+    { key: 'all', label: 'All' },
+    { key: 'fri', label: `<span style="width:7px;height:7px;border-radius:50%;background:${DAY_COLORS.fri};flex-shrink:0"></span>Fri` },
+    { key: 'sat', label: `<span style="width:7px;height:7px;border-radius:50%;background:${DAY_COLORS.sat};flex-shrink:0"></span>Sat` },
+    { key: 'sun', label: `<span style="width:7px;height:7px;border-radius:50%;background:${DAY_COLORS.sun};flex-shrink:0"></span>Sun` },
+    { key: 'mon', label: `<span style="width:7px;height:7px;border-radius:50%;background:${DAY_COLORS.mon};flex-shrink:0"></span>Mon` },
+    { key: 'walks', label: `<span style="width:12px;height:2px;border-radius:1px;background:${WALK_COLOR};flex-shrink:0"></span>Walks` },
+    { key: 'transport', label: `<span style="width:12px;height:2px;border-radius:1px;background:${BUS_COLOR};flex-shrink:0"></span>Info` },
+  ];
+  tabs.innerHTML = items.map(t =>
+    `<button class="day-tab ${activeDay === t.key ? 'active' : ''}" data-day="${t.key}">${t.label}</button>`
+  ).join('');
+  tabs.querySelectorAll('.day-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeDay = btn.dataset.day;
+      activeTag = 'all';
+      activePlace = null;
+      renderTabs();
+      renderTagFilters();
+      renderList();
+      refresh();
+    });
+  });
+}
+
+// ── Helpers ──
+function connectorHtml(day, fromStep, toStep, color) {
+  const key = `${day}-${fromStep}-${toStep}`;
+  const c = CONNECTORS[key];
+  if (!c) {
+    return `<div class="timeline-connector"><span class="conn-icon" style="opacity:.4">↓</span><span style="opacity:.4">walk</span></div>`;
+  }
+  const icons = { walk: '↓', bus: '↓', ferry: '↓' };
+  const modeLabels = { walk: '', bus: '🚌 ', ferry: '⛴️ ' };
+  const lineColor = c.mode === 'ferry' ? FERRY_COLOR : c.mode === 'bus' ? BUS_COLOR : 'var(--text-muted)';
+  return `<div class="timeline-connector">
+    <span class="conn-icon" style="color:${lineColor}">${icons[c.mode]}</span>
+    <span>${modeLabels[c.mode] || ''}${c.label}</span>
+    ${c.url ? `<a href="${c.url}" target="_blank" onclick="event.stopPropagation()">↗</a>` : ''}
+  </div>`;
+}
+
+function renderPlaceCard(p, color) {
+  return `<div class="place-card ${activePlace === p.id ? 'active' : ''}" data-id="${p.id}" style="border-left-color:${color}">
+    <div class="place-card-header">
+      ${p.step < 90 ? `<div class="step-num" style="background:${color}">${p.step}</div>` : `<div class="place-icon" style="background:${color}20;color:${color}">${p.emoji}</div>`}
+      <h3>${p.name}</h3>
+    </div>
+    ${p.desc ? `<p>${p.desc}</p>` : ''}
+    <div class="place-tags">
+      ${(p.tags || []).map(t => { const tag = TAGS[t]; return tag ? `<span class="place-tag"><span class="tag-dot" style="background:${tag.dot}"></span>${tag.label}</span>` : ''; }).join('')}
+      <a href="${gmapUrl(p.lat, p.lng, p.name)}" target="_blank" class="place-tag" style="text-decoration:none;color:var(--text-muted)" onclick="event.stopPropagation()"><span class="tag-dot" style="background:#48cae4"></span>Maps ↗</a>
+    </div>
+  </div>`;
+}
+
+// ── Info tab sub-renderers ──
+function renderInfoRoutes() {
+  return `
+    <div class="day-section-title" style="background:rgba(244,162,97,.15);color:#f4a261;margin:0 0 8px;cursor:default">🚌 Bus Routes</div>
+    ${BUS_ROUTES.filter(r => r.type === 'bus' && r.days.length > 0).map(r => `
+      <div class="place-card" style="border-left-color:${BUS_COLOR};cursor:pointer" onclick="zoomToBus('${r.id}')">
+        <div class="place-card-header"><h3>${r.name}</h3></div>
+        <p>${r.detail}${r.url ? ` · <a href="${r.url}" target="_blank" style="color:var(--sat)" onclick="event.stopPropagation()">timetable ↗</a>` : ''}</p>
+        <div class="place-tags"><span class="place-tag" style="background:rgba(244,162,97,.15);color:#f4a261">${r.days.map(d => DAY_LABELS[d]).join(', ')}</span></div>
+      </div>
+    `).join('')}
+    <div class="day-section-title" style="background:rgba(72,202,228,.15);color:#48cae4;margin:12px 0 8px;cursor:default">⛴️ Ferries</div>
+    ${BUS_ROUTES.filter(r => r.type === 'ferry').map(r => `
+      <div class="place-card" style="border-left-color:${FERRY_COLOR};cursor:pointer" onclick="zoomToBus('${r.id}')">
+        <div class="place-card-header"><h3>${r.name}</h3></div>
+        <p>${r.detail}${r.url ? ` · <a href="${r.url}" target="_blank" style="color:var(--sat)" onclick="event.stopPropagation()">book ↗</a>` : ''}</p>
+      </div>
+    `).join('')}`;
+}
+
+function renderInfoCost() {
+  const totalBus = RIDE_ESTIMATE.reduce((s, d) => s + d.rides.filter(r => r.type === 'bus').length, 0);
+  const totalTD = RIDE_ESTIMATE.reduce((s, d) => s + d.rides.filter(r => r.type === 'td').length, 0);
+  const totalFerry = RIDE_ESTIMATE.reduce((s, d) => s + d.rides.filter(r => r.type === 'ferry').length, 0);
+  const totalGozo = RIDE_ESTIMATE.reduce((s, d) => s + d.rides.filter(r => r.type === 'gozo').length, 0);
+  const payAsYouGo = RIDE_ESTIMATE.reduce((s, d) => s + d.rides.reduce((rs, r) => rs + r.fare, 0), 0);
+  const ferryTotal = RIDE_ESTIMATE.reduce((s, d) => s + d.rides.filter(r => r.type === 'ferry').reduce((fs, r) => fs + r.fare, 0), 0);
+  const flexTotal = 33 + ferryTotal;
+
+  return `
+    <div class="day-section-title" style="background:rgba(173,181,189,.15);color:var(--text-muted);margin:0 0 8px;cursor:default">🧮 Rides: ${totalBus + totalTD} bus + ${totalFerry} ferry + ${totalGozo / 2} Gozo HS</div>
+    ${RIDE_ESTIMATE.map(d => {
+      const color = DAY_COLORS[d.day];
+      return `<div class="place-card" style="border-left-color:${color};cursor:default">
+        <div class="place-card-header"><h3 style="color:${color}">${d.label}</h3><span style="font-size:.72rem;color:var(--text-muted)">${d.rides.length} rides</span></div>
+        <div style="margin-top:6px">
+          ${d.rides.map(r => {
+            const icon = r.type === 'ferry' ? '⛴️' : r.type === 'gozo' ? '🚀' : r.type === 'walk' ? '🥾' : '🚌';
+            const noteHtml = r.note ? `<span style="font-size:.6rem;opacity:.6">(${r.note})</span>` : '';
+            return `<a href="${r.url}" target="_blank" class="ride-link" style="font-size:.72rem;color:var(--text-muted);padding:3px 0;display:flex;gap:6px;text-decoration:none;border-radius:4px;transition:background .15s;align-items:center" onmouseover="this.style.background='rgba(255,255,255,.05)'" onmouseout="this.style.background='none'">
+              <span>${icon}</span>
+              <span style="flex:1">${r.route}: ${r.from} → ${r.to} ${noteHtml}</span>
+              <span style="color:var(--sat);font-size:.6rem">↗</span>
+              <span style="color:var(--text)">${r.fare > 0 ? '€' + r.fare.toFixed(2) : '—'}</span>
+            </a>`;
+          }).join('')}
+          <div style="font-size:.72rem;font-weight:600;color:var(--text);padding:4px 0 0;border-top:1px solid var(--border);margin-top:4px;text-align:right">
+            Day total: €${d.rides.reduce((s, r) => s + r.fare, 0).toFixed(2)}
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+    <div class="day-section-title" style="background:rgba(45,106,79,.15);color:#2d6a4f;margin:12px 0 8px;cursor:default">💰 Tickets (adult)</div>
+    <div class="place-card" style="border-left-color:#e63946;cursor:default">
+      <div class="place-card-header"><h3>Pay as you go</h3><span style="font-size:.85rem;font-weight:700;color:#e63946">€${payAsYouGo.toFixed(2)}</span></div>
+      <p>Bus winter €2.00, TD €3.00, Valletta ferry single €3.00 / return €4.80, Gozo HS return ~€15</p>
+    </div>
+    <div class="place-card" style="border-left-color:#f4a261;cursor:default">
+      <div class="place-card-header"><h3>12 Single Journeys Card</h3><span style="font-size:.85rem;font-weight:700;color:#f4a261">€19 + ferries</span></div>
+      <p>12 bus trips (shareable). TD costs 2 each. No Valletta ferry / Gozo HS.</p>
+    </div>
+    <div class="place-card" style="border-left-color:#48cae4;cursor:default">
+      <div class="place-card-header"><h3>Explore Flex 4-Day (bus)</h3><span style="font-size:.85rem;font-weight:700;color:#48cae4">€21</span></div>
+      <p>Unlimited buses incl. TD + night routes. No ferries.</p>
+    </div>
+    <div class="place-card" style="border-left-color:#2d6a4f;cursor:default">
+      <div class="place-card-header"><h3>Flex 4-Day + Gozo HS</h3><span style="font-size:.85rem;font-weight:700;color:#2d6a4f">€33</span></div>
+      <p>All buses + Gozo HS return. Valletta ferry extra (~€${ferryTotal} top-up).</p>
+    </div>
+    <div class="place-card" style="border-left-color:#2d6a4f;background:rgba(45,106,79,.08);cursor:default">
+      <div class="place-card-header"><h3>✅ Recommended</h3></div>
+      <p style="color:var(--text);font-weight:500"><strong>Flex 4-Day + Gozo HS = €33</strong> + ~€${ferryTotal} ferry = ~€${flexTotal} total. Saves ~€${(payAsYouGo - flexTotal).toFixed(0)} vs pay-as-you-go.</p>
+    </div>`;
+}
+
+function renderInfoTips() {
+  return `
+    <div class="day-section-title" style="background:rgba(173,181,189,.15);color:var(--text-muted);margin:0 0 8px;cursor:default">ℹ️ Practical Info</div>
+    <div class="place-card" style="border-left-color:var(--border);cursor:default">
+      <h3 style="font-size:.82rem;margin-bottom:6px">Bus Fares (Winter: 19 Oct – 13 Jun)</h3>
+      <p>Day routes: €2.00 · Summer: €2.50<br>Night routes: €3.00 · TD routes: €3.00<br>Tickets valid 2hrs with free transfers</p>
+    </div>
+    <div class="place-card" style="border-left-color:var(--border);cursor:default">
+      <h3 style="font-size:.82rem;margin-bottom:6px">Valletta Ferry (Sliema &amp; Three Cities)</h3>
+      <p>Adult single €3.00 · Return €4.80<br>Night single €3.50 · Night return €5.20<br>Winter: 06:45–19:30 · Summer: 06:45–00:00</p>
+    </div>
+    <div class="place-card" style="border-left-color:var(--border);cursor:default">
+      <h3 style="font-size:.82rem;margin-bottom:6px">Where to Buy</h3>
+      <p>Airport sales office · Valletta Terminal · Sliema Ferries · tallinja app · Card machines at tourist spots</p>
+    </div>
+    <div class="place-card" style="border-left-color:var(--border);cursor:default">
+      <h3 style="font-size:.82rem;margin-bottom:6px">Links</h3>
+      <div>
+        <a href="https://www.publictransport.com.mt/fares-and-tickets/#Flex" target="_blank" class="tips-link" style="color:var(--sat);text-decoration:none">Malta Public Transport fares ↗</a>
+        <a href="https://www.vallettaferryservices.com/" target="_blank" class="tips-link" style="color:var(--sat);text-decoration:none">Valletta Ferry schedules ↗</a>
+        <a href="https://gozohighspeed.com/" target="_blank" class="tips-link" style="color:var(--sat);text-decoration:none">Gozo High Speed booking ↗</a>
+        <a href="https://www.publictransport.com.mt/en/explore-flex" target="_blank" class="tips-link" style="color:var(--sat);text-decoration:none">Explore Flex details ↗</a>
+        <a href="https://tickets.maltafireworksfestival.com/product/malta-international-fireworks-festival-20th-april/" target="_blank" class="tips-link" style="color:var(--sat);text-decoration:none">Fireworks Festival tickets (Apr 20) ↗</a>
+      </div>
+    </div>`;
+}
+
+// ── Sidebar list ──
+function renderList() {
+  const el = document.getElementById('placeList');
+  const info = document.getElementById('infoPanel');
+
+  if (activeDay === 'transport') {
+    el.innerHTML = `
+      <div class="info-subtabs">
+        <button class="info-subtab ${activeInfoTab === 'routes' ? 'active' : ''}" data-tab="routes">Routes</button>
+        <button class="info-subtab ${activeInfoTab === 'cost' ? 'active' : ''}" data-tab="cost">Cost</button>
+        <button class="info-subtab ${activeInfoTab === 'tips' ? 'active' : ''}" data-tab="tips">Tips</button>
+      </div>
+      <div id="infoContent">
+        ${activeInfoTab === 'routes' ? renderInfoRoutes() : activeInfoTab === 'cost' ? renderInfoCost() : renderInfoTips()}
+      </div>`;
+    info.innerHTML = 'Adult prices · Winter 2025/26';
+    el.querySelectorAll('.info-subtab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        activeInfoTab = btn.dataset.tab;
+        renderList();
+      });
+    });
+    return;
+  }
+
+  if (activeDay === 'walks') {
+    el.innerHTML = WALKS.map(w => `
+      <div class="walk-info">
+        <h3>🥾 ${w.name}</h3>
+        <div class="walk-meta">${w.distance} · Best on ${dayLabel(w.relevantDay)}</div>
+        <p>${w.desc}</p>
+        <button class="walk-btn" onclick="zoomToWalk('${w.id}')">Show on map</button>
+      </div>
+    `).join('');
+    info.innerHTML = 'Walk data from Malta Tourism Authority & Ministry for Gozo brochures.';
+    return;
+  }
+
+  const places = filteredPlaces();
+  const days = activeDay === 'all' ? ['fri', 'sat', 'sun', 'mon'] : [activeDay];
+  const isAllView = activeDay === 'all';
+
+  let html = '';
+  days.forEach(day => {
+    const dayPlaces = places.filter(p => p.day === day).sort((a, b) => a.step - b.step);
+    if (dayPlaces.length === 0) return;
+    const color = DAY_COLORS[day];
+    const isCollapsed = isAllView && collapsedDays[day];
+
+    html += `<div class="day-section">
+      <div class="day-section-title ${isAllView ? 'collapsible' : ''}" style="background:${color}15;color:${color}" data-collapse="${day}">
+        <span>${dayLabel(day)} · ${dayPlaces.filter(p => p.step < 90).length} stops</span>
+        ${isAllView ? `<span class="chevron ${isCollapsed ? 'collapsed' : ''}">▼</span>` : ''}
+      </div>
+      <div class="day-section-body ${isCollapsed ? 'collapsed' : ''}">
+        ${dayPlaces.map((p, i) => {
+          let out = '';
+          if (i > 0 && p.step < 90 && dayPlaces[i-1].step < 90) {
+            out += connectorHtml(day, dayPlaces[i-1].step, p.step, color);
+          }
+          out += renderPlaceCard(p, color);
+          return out;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = html || '<div style="text-align:center;padding:40px;color:var(--text-muted)">No places for this filter.</div>';
+  info.innerHTML = `${places.filter(p => p.step < 90).length} stops · Click to fly there`;
+
+  el.querySelectorAll('.place-card[data-id]').forEach(card => {
+    card.addEventListener('click', () => selectPlace(card.dataset.id));
+  });
+
+  if (isAllView) {
+    el.querySelectorAll('.day-section-title[data-collapse]').forEach(title => {
+      title.addEventListener('click', () => {
+        const day = title.dataset.collapse;
+        collapsedDays[day] = !collapsedDays[day];
+        renderList();
+      });
+    });
+  }
+}
+
+function selectPlace(id) {
+  activePlace = id;
+  renderList();
+  const p = PLACES.find(x => x.id === id);
+  if (p && markerMap[id]) {
+    const padBottom = isMobile() ? SNAP_PEEK + 20 : 0;
+    map.flyTo([p.lat, p.lng], 16, { duration: 0.8, paddingBottomRight: [0, padBottom] });
+    markerMap[id].openPopup();
+    mobileSnapToPeek();
+  }
+}
+
+window.zoomToWalk = function(wid) {
+  const w = WALKS.find(x => x.id === wid);
+  if (!w) return;
+  const bounds = L.latLngBounds(w.coords);
+  map.flyToBounds(bounds, { padding: [50, 50], duration: 0.8 });
+};
+
+window.zoomToBus = function(bid) {
+  const r = BUS_ROUTES.find(x => x.id === bid);
+  if (!r) return;
+  const bounds = L.latLngBounds(r.coords);
+  map.flyToBounds(bounds, { padding: [60, 60], duration: 0.8 });
+};
+
+// ── Legend ──
+const DAY_SHORT = { fri: 'Fri', sat: 'Sat', sun: 'Sun', mon: 'Mon' };
+function renderLegend() {
+  document.getElementById('legend').innerHTML = `
+    ${Object.entries(DAY_COLORS).map(([d, c]) => `
+      <div class="legend-row">
+        <div class="legend-dot" style="background:${c}"></div>
+        <span style="color:${c}">${DAY_SHORT[d]}</span>
+      </div>
+    `).join('')}
+    <div class="legend-row">
+      <div class="legend-line" style="background:${WALK_COLOR}"></div>
+      <span>Walks</span>
+    </div>
+    <div class="legend-row">
+      <div class="legend-line" style="background:${BUS_COLOR}"></div>
+      <span>Bus</span>
+    </div>
+    <div class="legend-row">
+      <div class="legend-line" style="background:${FERRY_COLOR};height:2px"></div>
+      <span>Ferry</span>
+    </div>
+  `;
+}
+
+// ── Refresh map ──
+function refresh() {
+  const places = filteredPlaces();
+  addMarkers(places);
+  addWalkLines(activeDay);
+  addBusLines(activeDay);
+  if (activeDay !== 'all' && activeDay !== 'walks' && activeDay !== 'transport') {
+    const dayPlaces = places.filter(p => p.day === activeDay);
+    if (dayPlaces.length) {
+      const bounds = L.latLngBounds(dayPlaces.map(p => [p.lat, p.lng]));
+      const pb = isMobile() ? SNAP_PEEK + 20 : 60;
+      map.flyToBounds(bounds, { paddingTopLeft: [60, 60], paddingBottomRight: [60, pb], duration: 0.8 });
+    }
+  } else if (activeDay === 'walks') {
+    map.flyTo([35.94, 14.38], 11, { duration: 0.8 });
+  } else {
+    map.flyTo([35.94, 14.42], 11, { duration: 0.8 });
+  }
+}
+
+// ── Toggle sidebar (desktop) ──
+document.getElementById('toggleSidebar').addEventListener('click', () => {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+});
+
+// ── Mobile bottom sheet ──
+const isMobile = () => window.innerWidth <= 720;
+const SNAP_PEEK = 110;
+const SNAP_HALF_RATIO = 0.50;
+const SNAP_FULL_RATIO = 0.90;
+
+let sheetState = 'peek';
+let dragStartY = 0;
+let dragStartH = 0;
+let isDragging = false;
+
+function getSnapValues() {
+  const vh = window.innerHeight;
+  return { peek: SNAP_PEEK, half: Math.round(vh * SNAP_HALF_RATIO), full: Math.round(vh * SNAP_FULL_RATIO) };
+}
+
+function setSheetHeight(h) {
+  const sidebar = document.getElementById('sidebar');
+  sidebar.style.height = h + 'px';
+}
+
+function snapSheet(state) {
+  sheetState = state;
+  const sidebar = document.getElementById('sidebar');
+  const snaps = getSnapValues();
+  sidebar.classList.remove('dragging');
+  setSheetHeight(snaps[state]);
+}
+
+function snapToNearest(h) {
+  const snaps = getSnapValues();
+  const distances = [
+    { state: 'peek', d: Math.abs(h - snaps.peek) },
+    { state: 'half', d: Math.abs(h - snaps.half) },
+    { state: 'full', d: Math.abs(h - snaps.full) },
+  ];
+  distances.sort((a, b) => a.d - b.d);
+  snapSheet(distances[0].state);
+}
+
+const handle = document.getElementById('sheetHandle');
+
+handle.addEventListener('touchstart', e => {
+  if (!isMobile()) return;
+  isDragging = true;
+  dragStartY = e.touches[0].clientY;
+  dragStartH = document.getElementById('sidebar').offsetHeight;
+  document.getElementById('sidebar').classList.add('dragging');
+  e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+  if (!isDragging) return;
+  const dy = dragStartY - e.touches[0].clientY;
+  const newH = Math.max(SNAP_PEEK, Math.min(window.innerHeight * 0.95, dragStartH + dy));
+  setSheetHeight(newH);
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  if (!isDragging) return;
+  isDragging = false;
+  const h = document.getElementById('sidebar').offsetHeight;
+  snapToNearest(h);
+});
+
+handle.addEventListener('click', () => {
+  if (!isMobile()) return;
+  const cycle = { peek: 'half', half: 'full', full: 'peek' };
+  snapSheet(cycle[sheetState] || 'half');
+});
+
+function mobileSnapToPeek() {
+  if (isMobile()) snapSheet('peek');
+}
+
+// ── Init ──
+renderTabs();
+renderTagFilters();
+renderList();
+renderLegend();
+addMarkers(PLACES);
+addWalkLines('all');
+addBusLines('all');
+
+if (isMobile()) {
+  snapSheet('peek');
+  map.invalidateSize();
+}
+window.addEventListener('resize', () => {
+  if (isMobile()) snapSheet(sheetState);
+  map.invalidateSize();
+});
+</script>
+</body>
+</html>
